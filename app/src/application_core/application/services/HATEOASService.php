@@ -49,7 +49,7 @@ class HATEOASService
                 'method' => 'GET'
             ],
             'cancel' => [
-                'href' => "{$this->baseUrl}/rdvs/{$rdvId}",
+                'href' => "{$this->baseUrl}/rdvs/{$rdvId}/annuler",
                 'method' => 'DELETE',
                 'description' => 'Annuler le rendez-vous'
             ]
