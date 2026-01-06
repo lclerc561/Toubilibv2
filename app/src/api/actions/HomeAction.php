@@ -31,7 +31,7 @@ class HomeAction
                 // Rendez-vous
                 "POST /rdvs" => "Créer un rendez-vous (patient authentifié uniquement)",
                 "GET /rdvs/{id}" => "Consulter un rendez-vous (patient ou praticien du RDV)",
-                "DELETE /rdvs/{id}" => "Annuler un rendez-vous (patient ou praticien du RDV)",
+                "DELETE /rdvs/{id}/annuler" => "Annuler un rendez-vous (patient ou praticien du RDV)",
                 "PATCH /rdvs/{id}/honorer" => "Marquer un RDV comme honoré (praticien propriétaire uniquement, fonctionnalité 10)",
                 "PATCH /rdvs/{id}/non-honorer" => "Marquer un RDV comme non honoré (praticien propriétaire uniquement, fonctionnalité 10)",
                 

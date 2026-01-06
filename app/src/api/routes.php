@@ -69,7 +69,7 @@ return function( \Slim\App $app):\Slim\App {
         ->setName('create_rdv');
     
     // Opération 6: Annuler un RDV - praticien ou patient du RDV
-    $app->delete('/rdvs/{id}', AnnulerRDVAction::class)
+    $app->delete('/rdvs/{id}/annuler', AnnulerRDVAction::class)
         ->add(AuthZRDVMiddleware::class)
         ->add(AuthNMiddleware::class);
     

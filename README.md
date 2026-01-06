@@ -211,7 +211,7 @@ Toutes les réponses incluent des liens HATEOAS dans le champ `_links` pour faci
 | 3  | Créneaux occupés               | `GET /praticiens/{id}/rdvs/occupes?dateDebut=...&dateFin=...`                                                                                         | OK     |
 | 4  | Consulter RDV                    | `GET /rdvs/{id}`                                                                                                                                      | OK     |
 | 5  | Réserver RDV                    | `POST /rdvs`                                                                                                                                          | OK     |
-| 6  | Annuler RDV                      | `DELETE /rdvs/{id}`                                                                                                                                   | OK     |
+| 6  | Annuler RDV                      | `DELETE /rdvs/{id}/annuler`                                                                                                                                   | OK     |
 | 7  | Agenda praticien                 | `GET /praticiens/{id}/agenda?dateDebut=...&dateFin=...`                                                                                               | OK     |
 | 8  | Authentification                 | `POST /auth/login`                                                                                                                                    | OK     |
 | 9  | Recherche praticiens             | `GET /praticiens/search?specialite=...&ville=...`                                                                                                     | OK     |
