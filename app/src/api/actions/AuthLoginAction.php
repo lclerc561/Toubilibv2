@@ -5,8 +5,8 @@ namespace toubilib\api\actions;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use toubilib\core\application\usecases\ServiceAuthInterface;
-use toubilib\core\application\services\JWTService;
-use toubilib\core\application\services\HATEOASService;
+use toubilib\api\services\JWTService;
+use toubilib\api\services\HATEOASService;
 use Slim\Psr7\Response as SlimResponse;
 
 class AuthLoginAction

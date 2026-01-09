@@ -1,6 +1,6 @@
 <?php
 
-namespace toubilib\core\application\services;
+namespace toubilib\api\services;
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;

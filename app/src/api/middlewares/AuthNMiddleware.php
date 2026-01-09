@@ -5,7 +5,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
-use toubilib\core\application\services\JWTService;
+use toubilib\api\services\JWTService;
 
 class AuthNMiddleware implements MiddlewareInterface
 {

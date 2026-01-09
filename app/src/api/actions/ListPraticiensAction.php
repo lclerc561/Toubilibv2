@@ -5,7 +5,7 @@ namespace toubilib\api\actions;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use toubilib\core\application\usecases\ServicePraticienInterface;
-use toubilib\core\application\services\HATEOASService;
+use toubilib\api\services\HATEOASService;
 
 class ListPraticiensAction
 {

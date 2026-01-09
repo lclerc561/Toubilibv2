@@ -1,5 +1,5 @@
 <?php
-namespace toubilib\core\application\services;
+namespace toubilib\api\services;
 
 class HATEOASService
 {
@@ -49,7 +49,7 @@ class HATEOASService
                 'method' => 'GET'
             ],
             'cancel' => [
-                'href' => "{$this->baseUrl}/rdvs/{$rdvId}/annuler",
+                'href' => "{$this->baseUrl}/rdvs/{$rdvId}",
                 'method' => 'DELETE',
                 'description' => 'Annuler le rendez-vous'
             ]
