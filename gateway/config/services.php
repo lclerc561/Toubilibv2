@@ -7,8 +7,9 @@ use toubilib\gateway\api\actions\ListPraticiensAction;
 return [
     // Client Guzzle pour interroger l'API Toubilib
     Client::class => function (ContainerInterface $c) {
+        $baseUri = $_ENV['API_TOUBILIB_URL'] ?? 'http://api.toubilib:80';
         return new Client([
-            'base_uri' => 'http://api.toubilib:80',
+            'base_uri' => $baseUri,
             'timeout' => 30.0,
         ]);
     },
