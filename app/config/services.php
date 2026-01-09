@@ -34,6 +34,7 @@ use toubilib\core\application\ports\IndisponibiliteRepositoryInterface;
 use toubilib\infra\repositories\PDOIndisponibiliteRepository;
 use toubilib\core\application\usecases\ServiceIndisponibilite;
 use toubilib\core\application\usecases\ServiceIndisponibiliteInterface;
+use toubilib\api\middlewares\AuthZPraticienIndisponibiliteMiddleware;
 
 return [
 
@@ -142,7 +143,7 @@ return [
 
     AuthZPraticienAgendaMiddleware::class => fn() => new AuthZPraticienAgendaMiddleware(),
 
-    AuthZPraticienIndisponibiliteMiddleware::class => fn() => new \toubilib\api\middlewares\AuthZPraticienIndisponibiliteMiddleware(),
+    AuthZPraticienIndisponibiliteMiddleware::class => fn(): AuthZPraticienIndisponibiliteMiddleware => new AuthZPraticienIndisponibiliteMiddleware(),
 
     CORSMiddleware::class => fn() => new CORSMiddleware(),
 
