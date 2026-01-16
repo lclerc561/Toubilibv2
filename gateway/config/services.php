@@ -2,8 +2,7 @@
 
 use Psr\Container\ContainerInterface;
 use GuzzleHttp\Client;
-use toubilib\gateway\api\actions\ListPraticiensAction;
-use toubilib\gateway\api\actions\DetailPraticien;
+use toubilib\gateway\api\actions\GenericGatewayAction;
 
 return [
     // Client Guzzle pour interroger l'API Toubilib
@@ -15,13 +14,8 @@ return [
         ]);
     },
     
-    // Action pour lister les praticiens
-    ListPraticiensAction::class => function (ContainerInterface $c) {
-        return new ListPraticiensAction($c->get(Client::class));
-    },
-    
-    // Action pour obtenir les détails d'un praticien
-    DetailPraticien::class => function (ContainerInterface $c) {
-        return new DetailPraticien($c->get(Client::class));
+    // Action générique pour rediriger toutes les requêtes vers l'API Toubilib
+    GenericGatewayAction::class => function (ContainerInterface $c) {
+        return new GenericGatewayAction($c->get(Client::class));
     },
 ];
