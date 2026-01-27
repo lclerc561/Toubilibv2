@@ -22,6 +22,8 @@ use toubilib\core\application\usecases\ServiceAuthInterface;
 use toubilib\infra\repositories\PDOAuthRepository;
 use toubilib\api\actions\AuthLoginAction;
 use toubilib\api\services\JWTService;
+use toubilib\api\services\JWTAuthProvider;
+use toubilib\core\application\ports\AuthProviderInterface;
 use toubilib\api\middlewares\AuthNMiddleware;
 use toubilib\api\middlewares\AuthZPatientMiddleware;
 use toubilib\api\middlewares\AuthZPraticienMiddleware;
@@ -129,10 +131,22 @@ return [
             $c->get(PraticienRepositoryInterface::class)
         ),
 
+    // ==========================================
+    // AUTH : Services et Middlewares
+    // ==========================================
+    
+    // Service pour générer les tokens JWT
     JWTService::class => fn() => new JWTService(),
+    
+    // Provider d'authentification (implémentation JWT)
+    // C'est l'implémentation concrète de l'interface AuthProviderInterface
+    AuthProviderInterface::class => fn() => new JWTAuthProvider(),
+    
+    // Middleware d'authentification qui utilise l'interface (pas JWTService directement !)
+    AuthNMiddleware::class => fn(ContainerInterface $c) => 
+        new AuthNMiddleware($c->get(AuthProviderInterface::class)),
 
-    AuthNMiddleware::class => fn(ContainerInterface $c) => new AuthNMiddleware($c->get(JWTService::class)),
-
+    // Middlewares d'autorisation
     AuthZPatientMiddleware::class => fn() => new AuthZPatientMiddleware(),
 
     AuthZPraticienMiddleware::class => fn() => new AuthZPraticienMiddleware(),

@@ -3,11 +3,11 @@
 namespace toubilib\api\services;
 
 use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
-use Firebase\JWT\ExpiredException;
-use Firebase\JWT\SignatureInvalidException;
-use Exception;
 
+/**
+ * Service pour la génération de tokens JWT
+ * Séparé de l'authentification (validation) pour respecter le SRP
+ */
 class JWTService
 {
     private string $secretKey;
@@ -23,6 +23,9 @@ class JWTService
 
     /**
      * Génère un token JWT pour un utilisateur
+     * 
+     * @param array $payload Les données utilisateur (id, email, role)
+     * @return string Le token JWT généré
      */
     public function generateToken(array $payload): string
     {
@@ -42,51 +45,5 @@ class JWTService
         ];
 
         return JWT::encode($tokenPayload, $this->secretKey, $this->algorithm);
-    }
-
-    /**
-     * Valide et décode un token JWT
-     */
-    public function validateToken(string $token): array
-    {
-        try {
-            $decoded = JWT::decode($token, new Key($this->secretKey, $this->algorithm));
-            return (array) $decoded;
-        } catch (ExpiredException $e) {
-            throw new Exception('Token expiré');
-        } catch (SignatureInvalidException $e) {
-            throw new Exception('Token invalide');
-        } catch (Exception $e) {
-            throw new Exception('Erreur de validation du token: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Extrait les données utilisateur du token
-     */
-    public function getUserDataFromToken(string $token): array
-    {
-        $decoded = $this->validateToken($token);
-        $data = (array) $decoded['data'];
-        
-        // S'assurer que le rôle est un entier
-        if (isset($data['role'])) {
-            $data['role'] = (int) $data['role'];
-        }
-        
-        return $data;
-    }
-
-    /**
-     * Vérifie si un token est valide (sans lever d'exception)
-     */
-    public function isTokenValid(string $token): bool
-    {
-        try {
-            $this->validateToken($token);
-            return true;
-        } catch (Exception $e) {
-            return false;
-        }
     }
 }
