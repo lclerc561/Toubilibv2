@@ -1,6 +1,6 @@
 <?php
 
-
+namespace toubilib\core\application\ports;
 //Rôle : Définir le contrat que tout provider d'authentification doit respecter.
 interface AuthProviderInterface
 {
