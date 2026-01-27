@@ -37,8 +37,6 @@ services:
       - toubipatient.db
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
-<<<<<<< Updated upstream
-=======
 
  # service gateway : API Gateway qui redirige les requêtes vers l'API toubilib
   #
@@ -60,7 +58,6 @@ services:
       - API_AUTH_URL=http://api.auth:80
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
->>>>>>> Stashed changes
     # service toubiprat.db : base de données postgresql pour les praticiens
 
   toubiprat.db:
