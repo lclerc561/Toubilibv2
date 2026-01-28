@@ -10,6 +10,8 @@ use toubilib\infra\repositories\PDOAuthRepository;
 use toubilib\api\actions\AuthLoginAction;
 use toubilib\api\services\JWTService;
 use toubilib\api\services\HATEOASService;
+use toubilib\core\application\ports\AuthProviderInterface;
+use toubilib\api\services\JWTAuthProvider;
 
 return [
     // Connexions PDO strictement nécessaires
@@ -45,5 +47,6 @@ return [
             $c->get(ServiceAuthInterface::class),
             $c->get(JWTService::class),
             $c->get(HATEOASService::class)
-        )
+        ),
+    AuthProviderInterface::class => fn(ContainerInterface $c) => new JWTAuthProvider()
 ];

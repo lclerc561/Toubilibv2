@@ -29,7 +29,7 @@ $app = AppFactory::create();
 $app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 
-// Ajouter le middleware CORS globalement
+// Ajoute le middleware CORS globalement
 $app->add(new CORSMiddleware());
 
 $app->addErrorMiddleware(
