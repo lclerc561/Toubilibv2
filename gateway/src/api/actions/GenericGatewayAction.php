@@ -49,11 +49,17 @@ class GenericGatewayAction {
         return $response->withStatus($apiResponse->getStatusCode())
                         ->withHeader('Content-Type', 'application/json');
     } catch (RequestException $e) {
-        if ($e->hasResponse() && $e->getResponse()->getStatusCode() === 404) {
-            throw new HttpNotFoundException($request, "Ressource introuvable : $targetPath");
-        }
-        throw new HttpInternalServerErrorException($request, "Erreur Gateway vers : $targetPath", $e);
+    // Si le microservice a renvoyé une réponse (401, 403, 400, etc.)
+    if ($e->hasResponse()) {
+        $apiResponse = $e->getResponse();
+        $statusCode = $apiResponse->getStatusCode();
+        $response->getBody()->write($apiResponse->getBody()->getContents());
+        return $response->withStatus($statusCode)
+                        ->withHeader('Content-Type', 'application/json');
     }
+    // Si c'est un vrai problème technique
+    throw new HttpInternalServerErrorException($request, "Microservice injoignable", $e);
+}
 }
 
     /**
