@@ -5,15 +5,20 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
-use toubilib\core\application\services\JWTService;
+use toubilib\core\application\ports\AuthProviderInterface;
 
+/**
+ * Middleware d'authentification
+ * Utilise une interface AuthProviderInterface au lieu de dépendre directement de JWTService
+ * Respecte le principe d'inversion de dépendance (SOLID)
+ */
 class AuthNMiddleware implements MiddlewareInterface
 {
-    private JWTService $jwtService;
+    private AuthProviderInterface $authProvider;
 
-    public function __construct(JWTService $jwtService)
+    public function __construct(AuthProviderInterface $authProvider)
     {
-        $this->jwtService = $jwtService;
+        $this->authProvider = $authProvider;
     }
 
     public function process(Request $request, RequestHandler $handler): Response
@@ -31,8 +36,8 @@ class AuthNMiddleware implements MiddlewareInterface
         $token = $matches[1];
         
         try {
-            // Valider le token JWT
-            $userData = $this->jwtService->getUserDataFromToken($token);
+            // Le middleware ne sait pas que c'est du JWT - il utilise juste l'interface
+            $userData = $this->authProvider->validateAndExtractUserData($token);
             
             // Ajouter les données utilisateur à la requête
             $request = $request->withAttribute('user', $userData);

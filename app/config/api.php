@@ -21,7 +21,7 @@ use toubilib\core\application\usecases\ServiceAuthInterface;
 use toubilib\infra\repositories\PDORDVRepository;
 use toubilib\core\application\usecases\ServicePatient;
 use toubilib\core\application\usecases\ServicePatientInterface;
-use toubilib\core\application\services\HATEOASService;
+use toubilib\api\services\HATEOASService;
 use toubilib\core\application\usecases\ServiceIndisponibiliteInterface;
 use toubilib\api\actions\CreateIndisponibiliteAction;
 use toubilib\api\actions\ListIndisponibilitesAction;

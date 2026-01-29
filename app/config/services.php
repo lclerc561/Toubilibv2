@@ -21,7 +21,9 @@ use toubilib\core\application\usecases\ServiceAuth;
 use toubilib\core\application\usecases\ServiceAuthInterface;
 use toubilib\infra\repositories\PDOAuthRepository;
 use toubilib\api\actions\AuthLoginAction;
-use toubilib\core\application\services\JWTService;
+use toubilib\api\services\JWTService;
+use toubilib\api\services\JWTAuthProvider;
+use toubilib\core\application\ports\AuthProviderInterface;
 use toubilib\api\middlewares\AuthNMiddleware;
 use toubilib\api\middlewares\AuthZPatientMiddleware;
 use toubilib\api\middlewares\AuthZPraticienMiddleware;
@@ -29,11 +31,12 @@ use toubilib\api\middlewares\AuthZRDVMiddleware;
 use toubilib\api\middlewares\AuthZPraticienRDVMiddleware;
 use toubilib\api\middlewares\AuthZPraticienAgendaMiddleware;
 use toubilib\api\middlewares\CORSMiddleware;
-use toubilib\core\application\services\HATEOASService;
+use toubilib\api\services\HATEOASService;
 use toubilib\core\application\ports\IndisponibiliteRepositoryInterface;
 use toubilib\infra\repositories\PDOIndisponibiliteRepository;
 use toubilib\core\application\usecases\ServiceIndisponibilite;
 use toubilib\core\application\usecases\ServiceIndisponibiliteInterface;
+use toubilib\api\middlewares\AuthZPraticienIndisponibiliteMiddleware;
 
 return [
 
@@ -128,10 +131,22 @@ return [
             $c->get(PraticienRepositoryInterface::class)
         ),
 
+    // ==========================================
+    // AUTH : Services et Middlewares
+    // ==========================================
+    
+    // Service pour générer les tokens JWT
     JWTService::class => fn() => new JWTService(),
+    
+    // Provider d'authentification (implémentation JWT)
+    // C'est l'implémentation concrète de l'interface AuthProviderInterface
+    AuthProviderInterface::class => fn() => new JWTAuthProvider(),
+    
+    // Middleware d'authentification qui utilise l'interface (pas JWTService directement !)
+    AuthNMiddleware::class => fn(ContainerInterface $c) => 
+        new AuthNMiddleware($c->get(AuthProviderInterface::class)),
 
-    AuthNMiddleware::class => fn(ContainerInterface $c) => new AuthNMiddleware($c->get(JWTService::class)),
-
+    // Middlewares d'autorisation
     AuthZPatientMiddleware::class => fn() => new AuthZPatientMiddleware(),
 
     AuthZPraticienMiddleware::class => fn() => new AuthZPraticienMiddleware(),
@@ -142,7 +157,7 @@ return [
 
     AuthZPraticienAgendaMiddleware::class => fn() => new AuthZPraticienAgendaMiddleware(),
 
-    AuthZPraticienIndisponibiliteMiddleware::class => fn() => new \toubilib\api\middlewares\AuthZPraticienIndisponibiliteMiddleware(),
+    AuthZPraticienIndisponibiliteMiddleware::class => fn(): AuthZPraticienIndisponibiliteMiddleware => new AuthZPraticienIndisponibiliteMiddleware(),
 
     CORSMiddleware::class => fn() => new CORSMiddleware(),
 

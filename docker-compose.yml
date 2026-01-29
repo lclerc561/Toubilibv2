@@ -4,22 +4,21 @@ networks:
 
 services:
 
-  # service api.auth: api pour l'authentification
-  #
-  api.auth:
+  # --- MICROSERVICE AUTHENTIFICATION ---
+  app.auth:
     build:
       context: build
       dockerfile: 8.4-cli.Dockerfile
     volumes:
-      - ./app.auth:/var/php
+      - ./app-auth:/var/php # Dossier renommé app-auth
     working_dir: /var/php
     networks:
       - toubilib.net
     depends_on:
       - toubiauth.db
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
-  # service api.toubeelib : api pour la prise de rdv
-  #
+
+  # --- api Toubilib ---
   api.toubilib:
     build:
       context: build
@@ -37,9 +36,43 @@ services:
       - toubipatient.db
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
+  # --- MICROSERVICE PRATICIENS ---
+  app.praticiens:
+    build:
+      context: build
+      dockerfile: 8.4-cli.Dockerfile
+    ports:
+      - '6082:80'
+    volumes:
+      - ./app-praticiens:/var/php
+    working_dir: /var/php
+    networks:
+      - toubilib.net
+    depends_on:
+      - toubiprat.db
+    command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
- # service gateway : API Gateway qui redirige les requêtes vers l'API toubilib
-  #
+  # --- MICROSERVICE RDV ---
+  app.rdv:
+    build:
+      context: build
+      dockerfile: 8.4-cli.Dockerfile
+    ports:
+      - '6083:80'
+    volumes:
+      - ./app-rdv:/var/php
+    working_dir: /var/php
+    networks:
+      - toubilib.net
+    depends_on:
+      - toubirdv.db
+      - toubipatient.db
+      - app.praticiens
+    environment:
+      - API_PRATICIENS_URL=http://app.praticiens:80
+    command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
+
+  # --- API GATEWAY ---
   api.gateway.toubilib:
     build:
       context: build
@@ -53,13 +86,17 @@ services:
       - toubilib.net
     depends_on:
       - api.toubilib
+      - app.praticiens
+      - app.rdv
+      - app.auth
     environment:
       - API_TOUBILIB_URL=http://api.toubilib:80
+      - API_PRATICIENS_URL=http://app.praticiens:80
+      - API_RDV_URL=http://app.rdv:80
       - API_AUTH_URL=http://api.auth:80
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
-    # service toubiprat.db : base de données postgresql pour les praticiens
-
+  # --- BASES DE DONNÉES ---
   toubiprat.db:
     image: 'postgres:latest'
     env_file: ./toubipratdb.env
@@ -73,16 +110,16 @@ services:
       - ./sql/toubiprat.data.sql:/docker-entrypoint-initdb.d/2_toubiprat.data.sql
 
   toubiauth.db:
-      image: 'postgres:latest'
-      env_file: ./toubiauthdb.env
-      ports:
-        - '5433:5432'
-      networks:
-        - toubilib.net
-      volumes:
-        - ./sql:/var/sql
-        - ./sql/toubiauth.schema.sql:/docker-entrypoint-initdb.d/1_toubiauth.schema.sql
-        - ./sql/toubiauth.data.sql:/docker-entrypoint-initdb.d/2_toubiauth.data.sql
+    image: 'postgres:latest'
+    env_file: ./toubiauthdb.env
+    ports:
+      - '5433:5432'
+    networks:
+      - toubilib.net
+    volumes:
+      - ./sql:/var/sql
+      - ./sql/toubiauth.schema.sql:/docker-entrypoint-initdb.d/1_toubiauth.schema.sql
+      - ./sql/toubiauth.data.sql:/docker-entrypoint-initdb.d/2_toubiauth.data.sql
 
   toubirdv.db:
     image: 'postgres:latest'
@@ -108,13 +145,9 @@ services:
       - ./sql/toubipat.schema.sql:/docker-entrypoint-initdb.d/1_toubipat.schema.sql
       - ./sql/toubipat.data.sql:/docker-entrypoint-initdb.d/2_toubipat.data.sql
 
-  #
-  # service administration des bases sql
-  #
   adminer:
     image: adminer
     ports:
       - '8080:8080'
     networks:
       - toubilib.net
-

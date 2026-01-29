@@ -2,26 +2,50 @@
 
 use Psr\Container\ContainerInterface;
 use GuzzleHttp\Client;
+use toubilib\gateway\api\actions\GenericGatewayAction;
+use toubilib\gateway\api\middlewares\AuthNMiddleware;
 
 return [
-    // Client pour le microservice authentification
     'client.auth' => function (ContainerInterface $c) {
         return new Client([
-            'base_uri' => $_ENV['API_AUTH_URL'] ?? 'http://api.auth:80',
+            'base_uri' => $_ENV['API_AUTH_URL'] ?? 'http://app.auth:80',
             'timeout'  => 30.0,
         ]);
     },
 
-    // Client pour le service métier (toubilib)
     'client.toubilib' => function (ContainerInterface $c) {
         return new Client([
             'base_uri' => $_ENV['API_TOUBILIB_URL'] ?? 'http://api.toubilib:80',
-            'timeout'  => 30.0,
+            'timeout' => 30.0,
+        ]);
+    },
+    
+    'client.praticiens' => function (ContainerInterface $c) {
+        return new Client([
+            'base_uri' => $_ENV['API_PRATICIENS_URL'] ?? 'http://app.praticiens:80',
+            'timeout' => 30.0,
+        ]);
+    },
+    
+    'client.rdv' => function (ContainerInterface $c) {
+        return new Client([
+            'base_uri' => $_ENV['API_RDV_URL'] ?? 'http://app.rdv:80',
+            'timeout' => 30.0,
         ]);
     },
 
-    // Client par défaut pour éviter l'erreur de conteneur
-    Client::class => function (ContainerInterface $c) {
-        return $c->get('client.toubilib');
+    GenericGatewayAction::class => function (ContainerInterface $c) {
+        return new GenericGatewayAction(
+            $c->get('client.toubilib'),
+            $c->get('client.praticiens'),
+            $c->get('client.rdv'),
+            $c->get('client.auth')
+        );
     },
+
+    AuthNMiddleware::class => function($c) {
+        return new AuthNMiddleware($c->get('client.auth'));
+    },
+
+    Client::class => fn(ContainerInterface $c) => $c->get('client.toubilib'),
 ];
