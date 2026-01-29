@@ -527,9 +527,9 @@
             'dev_requirement' => false,
         ),
         'symfony/finder' => array(
-            'pretty_version' => 'v8.0.4',
-            'version' => '8.0.4.0',
-            'reference' => '42e48eb02e07d5f3771d194d67da117eb824c8c1',
+            'pretty_version' => 'v8.0.5',
+            'version' => '8.0.5.0',
+            'reference' => '8bd576e97c67d45941365bf824e18dc8538e6eb0',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/finder',
             'aliases' => array(),

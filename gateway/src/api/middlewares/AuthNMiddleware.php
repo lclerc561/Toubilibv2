@@ -8,6 +8,8 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use GuzzleHttp\Client;
 use Slim\Psr7\Response as SlimResponse;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\ConnectException;
 
 class AuthNMiddleware implements MiddlewareInterface
 {
@@ -15,44 +17,59 @@ class AuthNMiddleware implements MiddlewareInterface
 
     public function __construct(Client $authClient)
     {
-        // Client configuré pour pointer vers http://api.auth
         $this->authClient = $authClient;
     }
 
     public function process(Request $request, RequestHandler $handler): Response
     {
-        //Extraire le token
         $authHeader = $request->getHeaderLine('Authorization');
-        if (!$authHeader || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-            return $this->errorResponse("Token d'authentification manquant", 401);
+        if (!$authHeader) {
+            return $this->unauthorized("Token d'authentification manquant");
         }
 
-        $token = $matches[1];
-
         try {
-            //Adresser une requête de validation au microservice d'authentification
+            //Requête de validation au microservice d'authentification
             $response = $this->authClient->get('/tokens/validate', [
-                'headers' => ['Authorization' => "Bearer $token"]
+                'headers' => ['Authorization' => $authHeader]
             ]);
 
             if ($response->getStatusCode() === 200) {
-                // Requête transmise au middleware suivant
-                $userData = json_decode($response->getBody()->getContents(), true);
-                $request = $request->withAttribute('user', $userData['user']);
-                
+                //prochain middleware ou l'action
                 return $handler->handle($request);
             }
+        } catch (ClientException $e) {
+            // C'est une erreur 4xx (le service d'auth a répondu que le token est mauvais)
+            return $this->unauthorized("Jeton JWT invalide ou expiré");
+        } catch (ConnectException $e) {
+            // Problème de réseau (le microservice app.auth est peut-être éteint)
+            return $this->errorResponse("Service d'authentification injoignable", 503);
         } catch (\Exception $e) {
-            return $this->errorResponse("Token invalide ou expiré : " . $e->getMessage(), 401);
+            // Toute autre erreur (ex: mauvaise route /tokens/validate)
+            return $this->errorResponse("Erreur interne du middleware : " . $e->getMessage(), 500);
         }
 
-        return $this->errorResponse("Authentification échouée", 401);
+        return $this->unauthorized("Authentification échouée");
     }
 
     private function errorResponse(string $message, int $status): Response
     {
+        $response = new \Slim\Psr7\Response();
+        $response->getBody()->write(json_encode([
+            'type' => 'error',
+            'error' => $status,
+            'message' => $message
+        ]));
+        return $response->withStatus($status)->withHeader('Content-Type', 'application/json');
+    }
+
+    private function unauthorized(string $message): Response
+    {
         $response = new SlimResponse();
-        $response->getBody()->write(json_encode(['status' => 'error', 'message' => $message]));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+        $response->getBody()->write(json_encode([
+            'type' => 'error',
+            'error' => 401,
+            'message' => $message
+        ]));
+        return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
     }
 }
