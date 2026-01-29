@@ -3,19 +3,38 @@
 .vscode/
 .DS_STORE
 /coverage/
-# Vendor
+
+# Vendor directories for all services
 /vendor/
+/app/vendor/
+/app-praticiens/vendor/
+/app-rdv/vendor/
+/gateway/vendor/
+
 # Logs
 /app/logs/*
 !/app/logs/README.md
+
 # Cache
 /var/cache/*
 .phpunit.result.cache
 cache.properties
 .php_cs.cache
+
 # Composer
 composer.phar
 composer.lock
-/app/vendor/
-/gateway/vendor/
+/app/composer.lock
+/app-praticiens/composer.lock
+/app-rdv/composer.lock
+/gateway/composer.lock
+
+# Environment files (secrets)
 /app/config/.env
+/app-praticiens/config/.env
+/app-rdv/config/.env
+/gateway/config/.env
+.env
+
+# Node modules (si jamais utilisé)
+node_modules/

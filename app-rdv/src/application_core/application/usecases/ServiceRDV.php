@@ -1,0 +1,211 @@
+<?php
+namespace toubilib\core\application\usecases;
+
+use toubilib\core\application\ports\RDVRepositoryInterface;
+use toubilib\core\application\dto\InputRDVDTO;
+use toubilib\core\domain\entities\RDV;
+use toubilib\core\application\dto\RDVDTO;
+use toubilib\infra\adapters\PraticienServiceAdapter;
+use DateTime;
+use Exception;
+use Ramsey\Uuid\Uuid;
+
+class ServiceRDV implements ServiceRDVInterface
+{
+    private RDVRepositoryInterface $rdvRepository;
+    private PraticienServiceAdapter $praticienAdapter;
+    private ServicePatientInterface $servicePatient;
+
+    public function __construct(
+        RDVRepositoryInterface $rdvRepository,
+        PraticienServiceAdapter $praticienAdapter,
+        ServicePatientInterface $servicePatient
+    ) {
+        $this->rdvRepository = $rdvRepository;
+        $this->praticienAdapter = $praticienAdapter;
+        $this->servicePatient = $servicePatient;
+    }
+
+    public function listerCreneauxOccupes(string $praticienId, DateTime $debut, DateTime $fin): array
+    {
+        $rdvs = $this->rdvRepository->findBusySlots($praticienId, $debut, $fin);
+        
+        $dtos = [];
+        foreach ($rdvs as $rdv) {
+            $dtos[] = new RDVDTO(
+                $rdv->getId(),
+                $rdv->getPraticienId(),
+                $rdv->getPatientId(),
+                $rdv->getPatientEmail(),
+                $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                $rdv->getDateHeureFin()?->format('Y-m-d H:i:s'),
+                $rdv->getStatus(),
+                $rdv->getDuree(),
+                $rdv->getDateCreation()?->format('Y-m-d H:i:s'),
+                $rdv->getMotifVisite()
+            );
+        }
+        return $dtos;
+    }
+
+    public function consulterRdv(string $rdvId): ?RDVDTO
+    {
+        $rdv = $this->rdvRepository->findById($rdvId);
+
+        if (!$rdv) {
+            return null;
+        }
+
+        return new RDVDTO(
+            $rdv->getId(),
+            $rdv->getPraticienId(),
+            $rdv->getPatientId(),
+            $rdv->getPatientEmail(),
+            $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+            $rdv->getDateHeureFin()?->format('Y-m-d H:i:s'),
+            $rdv->getStatus(),
+            $rdv->getDuree(),
+            $rdv->getDateCreation()?->format('Y-m-d H:i:s'),
+            $rdv->getMotifVisite()
+        );
+    }
+
+    public function creerRendezVous(InputRDVDTO $dto): RDV
+    {
+        $debut = new DateTime($dto->dateHeureDebut);
+        $fin = (clone $debut)->modify("+{$dto->duree} minutes");
+
+        // Vérifier que le praticien existe via l'adaptateur HTTP
+        if (!$this->praticienAdapter->existePraticien($dto->praticienId)) {
+            throw new Exception("Praticien inexistant");
+        }
+
+        if (!$this->servicePatient->existePatient($dto->patientId)) {
+            throw new Exception("Patient inexistant");
+        }
+
+        // Vérifier que la date n'est pas dans le passé
+        $now = new DateTime();
+        if ($debut < $now) {
+            throw new Exception("Impossible de créer un rendez-vous dans le passé");
+        }
+
+        // Vérifier les motifs autorisés via l'adaptateur HTTP
+        $motifsAutorises = $this->praticienAdapter->getMotifsVisite($dto->praticienId);
+        if (!in_array($dto->motifVisite, $motifsAutorises, true)) {
+            throw new Exception("Motif de visite non autorisé pour ce praticien");
+        }
+
+        $jour = (int)$debut->format('N');
+        $heure = (int)$debut->format('H');
+        if ($jour > 5 || $heure < 8 || $heure >= 19) {
+            throw new Exception("Créneau horaire invalide (lun-ven 08:00-19:00)");
+        }
+
+        // Vérifier les créneaux occupés
+        $creneauxOccupes = $this->rdvRepository->findBusySlots($dto->praticienId, $debut, $fin);
+        foreach ($creneauxOccupes as $existing) {
+            if ($existing->getDateHeureDebut() < $fin && $existing->getDateHeureFin() > $debut) {
+                throw new Exception("Praticien déjà occupé sur ce créneau");
+            }
+        }
+
+        $rdv = new RDV(
+            Uuid::uuid4()->toString(),
+            $dto->praticienId,
+            $dto->patientId,
+            $dto->patientEmail ?? null,
+            $debut,
+            $fin,
+            0,
+            $dto->duree,
+            new DateTime(),
+            $dto->motifVisite
+        );
+
+        $this->rdvRepository->save($rdv);
+
+        return $rdv;
+    }
+
+    public function annulerRendezVous(string $rdvId): void
+    {
+        $rdv = $this->rdvRepository->findById($rdvId);
+        if (!$rdv) {
+            throw new Exception("RDV inexistant");
+        }
+
+        $rdv->annuler();
+
+        $this->rdvRepository->updateStatus($rdv->getId(), $rdv->getStatus());
+    }
+
+    public function marquerCommeHonore(string $rdvId): void
+    {
+        $rdv = $this->rdvRepository->findById($rdvId);
+        if (!$rdv) {
+            throw new Exception("RDV inexistant");
+        }
+
+        $rdv->honorer();
+
+        $this->rdvRepository->updateStatus($rdv->getId(), $rdv->getStatus());
+    }
+
+    public function marquerCommeNonHonore(string $rdvId): void
+    {
+        $rdv = $this->rdvRepository->findById($rdvId);
+        if (!$rdv) {
+            throw new Exception("RDV inexistant");
+        }
+
+        $rdv->nonHonorer();
+
+        $this->rdvRepository->updateStatus($rdv->getId(), $rdv->getStatus());
+    }
+
+    public function getAgendaPraticien(string $praticienId, ?\DateTime $dateDebut = null, ?\DateTime $dateFin = null): array
+    {
+        $dateDebut = $dateDebut ?? new \DateTime();
+        $dateFin = $dateFin ?? (clone $dateDebut)->modify('+1 day');
+
+        $rdvs = $this->rdvRepository->findBusySlots($praticienId, $dateDebut, $dateFin);
+
+        $agenda = [];
+        foreach ($rdvs as $rdv) {
+            $agenda[] = [
+                'id' => $rdv->getId(),
+                'patientId' => $rdv->getPatientId(),
+                'patientLink' => "/patients/{$rdv->getPatientId()}",
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'dateHeureFin' => $rdv->getDateHeureFin()?->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'status' => $rdv->getStatus(),
+            ];
+        }
+
+        return $agenda;
+    }
+
+    public function listerConsultationsPatient(string $id): array
+    {
+        $consultations = $this->rdvRepository->findConsultationsByPatientId($id);
+        $praticienDTOs = [];
+        foreach ($consultations as $consultation) {
+            $praticienDTOs[] = new RDVDTO(
+                $consultation->getId(),
+                $consultation->getPraticienId(),
+                $consultation->getPatientId(),
+                $consultation->getPatientEmail(),
+                $consultation->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                $consultation->getDateHeureFin()?->format('Y-m-d H:i:s'),
+                $consultation->getStatus(),
+                $consultation->getDuree(),
+                $consultation->getDateCreation()?->format('Y-m-d H:i:s'),
+                $consultation->getMotifVisite()
+            );
+        }
+        return $praticienDTOs;
+    }
+}

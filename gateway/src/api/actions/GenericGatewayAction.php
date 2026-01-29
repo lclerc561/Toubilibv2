@@ -12,10 +12,12 @@ use Slim\Exception\HttpInternalServerErrorException;
 class GenericGatewayAction {
     private Client $clientToubilib;
     private Client $clientPraticiens;
+    private Client $clientRdv;
 
-    public function __construct(Client $clientToubilib, Client $clientPraticiens) {
+    public function __construct(Client $clientToubilib, Client $clientPraticiens, Client $clientRdv) {
         $this->clientToubilib = $clientToubilib;
         $this->clientPraticiens = $clientPraticiens;
+        $this->clientRdv = $clientRdv;
     }
 
     public function __invoke(Request $request, Response $response, array $args): Response {
@@ -58,12 +60,24 @@ class GenericGatewayAction {
      * @return Client Le client Guzzle approprié
      */
     private function selectClient(string $path): Client {
-        // Si le path commence par /praticiens, utiliser le microservice praticiens
+        // Routes spécifiques praticiens (avec RDV) → microservice rdv
+        // IMPORTANT : Vérifier ces routes AVANT la route générique praticiens !
+        if (preg_match('#^praticiens/[^/]+/(agenda|rdvs/occupes)#', $path)) {
+            return $this->clientRdv;
+        }
+        
+        // Routes praticiens génériques (liste, détails, recherche) → microservice praticiens
         if (str_starts_with($path, 'praticiens')) {
             return $this->clientPraticiens;
         }
         
-        // Sinon, utiliser l'API complète toubilib
+        // Routes RDV, patients → microservice rdv
+        if (str_starts_with($path, 'rdvs') || 
+            str_starts_with($path, 'patients')) {
+            return $this->clientRdv;
+        }
+        
+        // Routes auth, ou tout le reste → API complète toubilib
         return $this->clientToubilib;
     }
 }
