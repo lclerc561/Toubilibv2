@@ -64,33 +64,43 @@ class GenericGatewayAction {
 
     /**
      * Sélectionne le bon client selon le path de la requête
-     * 
+     *
      * @param string $path Le chemin de la requête
      * @return Client Le client Guzzle approprié
      */
     private function selectClient(string $path): Client {
+        $service = null;
+
         // --- Routes d'authentification (Microservice app.auth) ---
         if (str_starts_with($path, 'auth') || str_starts_with($path, 'tokens')) {
-            return $this->clientAuth;
+            $service = 'app.auth';
+            $client = $this->clientAuth;
         }
-        
         // Routes spécifiques praticiens (avec RDV) → microservice rdv
         // IMPORTANT : Vérifier ces routes AVANT la route générique praticiens !
-        if (preg_match('#^praticiens/[^/]+/(agenda|rdvs/occupes)#', $path)) {
-            return $this->clientRdv;
+        elseif (preg_match('#^praticiens/[^/]+/(agenda|rdvs/occupes)#', $path)) {
+            $service = 'app.rdv';
+            $client = $this->clientRdv;
         }
-        
         // Routes praticiens génériques → microservice praticiens
-        if (str_starts_with($path, 'praticiens')) {
-            return $this->clientPraticiens;
+        elseif (str_starts_with($path, 'praticiens')) {
+            $service = 'app.praticiens';
+            $client = $this->clientPraticiens;
         }
-        
         // Routes RDV, patients → microservice rdv
-        if (str_starts_with($path, 'rdvs') || str_starts_with($path, 'patients')) {
-            return $this->clientRdv;
+        elseif (str_starts_with($path, 'rdvs') || str_starts_with($path, 'patients')) {
+            $service = 'app.rdv';
+            $client = $this->clientRdv;
+        }
+        // Reste vers le monolithe api.toubilib
+        else {
+            $service = 'api.toubilib';
+            $client = $this->clientToubilib;
         }
 
-        // reste vers le monolithe api.toubilib
-        return $this->clientToubilib;
+        // Logging pour débogage et monitoring
+        error_log(sprintf("[Gateway] Routing %s → %s", $path, $service));
+
+        return $client;
     }
 }

@@ -8,36 +8,34 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Slim\Psr7\Response as SlimResponse;
 use Slim\Routing\RouteContext;
 
+/**
+ * Middleware d'autorisation pour les praticiens
+ *
+ * Vérifie que l'utilisateur authentifié est un praticien et qu'il accède à ses propres données.
+ * IMPORTANT: Ce middleware doit être placé APRÈS AuthNMiddleware qui valide le token.
+ */
 class AuthZPraticienMiddleware implements MiddlewareInterface
 {
     public function process(Request $request, RequestHandler $handler): Response
     {
-        $authHeader = $request->getHeaderLine('Authorization');
-        $tokenParts = explode('.', str_replace('Bearer ', '', $authHeader));
-        
-        if (count($tokenParts) !== 3) {
-            return $this->forbidden("Jeton JWT invalide ou manquant");
+        // Récupérer les données utilisateur validées par AuthNMiddleware
+        $user = $request->getAttribute('user');
+
+        if (!$user) {
+            return $this->forbidden("Authentification requise");
         }
 
-        $payload = json_decode(base64_decode($tokenParts[1]), true);
-
-        if (!isset($payload['data'])) {
-            return $this->forbidden("Données utilisateur manquantes dans le jeton");
-        }
-
-        $user = $payload['data'];
-
-        //Vérification du rôle Praticien
+        // Vérification du rôle Praticien (role = 10)
         if ($user['role'] !== 10) {
             return $this->forbidden("Accès réservé aux praticiens");
         }
 
-        //Vérification de l'ID Praticien si présent dans la route
+        // Vérification de l'ID Praticien si présent dans la route
         $routeContext = RouteContext::fromRequest($request);
         $route = $routeContext->getRoute();
         $praticienId = $route->getArgument('id');
-        
-        //Si l'URL contient un ID, il doit correspondre à l'ID du token
+
+        // Si l'URL contient un ID, il doit correspondre à l'ID du token
         if ($praticienId && $user['id'] !== $praticienId) {
             return $this->forbidden("Accès refusé : vous n'êtes pas le propriétaire de cette ressource");
         }

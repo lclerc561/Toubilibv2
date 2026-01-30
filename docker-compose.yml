@@ -93,7 +93,7 @@ services:
       - API_TOUBILIB_URL=http://api.toubilib:80
       - API_PRATICIENS_URL=http://app.praticiens:80
       - API_RDV_URL=http://app.rdv:80
-      - API_AUTH_URL=http://api.auth:80
+      - API_AUTH_URL=http://app.auth:80
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
   # --- BASES DE DONNÉES ---
