@@ -16,6 +16,8 @@ use toubilib\core\application\ports\PraticienInfoPort;
 use toubilib\infra\adapters\PraticienServiceAdapter;
 use toubilib\core\application\ports\AuthProviderInterface;
 use toubilib\api\services\JWTAuthProvider;
+use toubilib\core\domain\ports\EventPublisherInterface;
+use toubilib\infra\messaging\AMQPEventPublisher;
 use GuzzleHttp\Client;
 
 return [
@@ -62,6 +64,9 @@ return [
     PraticienInfoPort::class => fn(ContainerInterface $c) =>
         new PraticienServiceAdapter($c->get('client.praticiens')),
 
+    // Event Publisher
+    EventPublisherInterface::class => fn() => new AMQPEventPublisher(),
+
     // Services
     ServicePatientInterface::class =>
         fn(ContainerInterface $c) => new ServicePatient($c->get(PatientRepositoryInterface::class)),
@@ -69,8 +74,9 @@ return [
     ServiceRDVInterface::class =>
         fn(ContainerInterface $c) => new ServiceRDV(
             $c->get(RDVRepositoryInterface::class),
-            $c->get(PraticienInfoPort::class),  // Injection du port (interface)
-            $c->get(ServicePatientInterface::class)
+            $c->get(PraticienInfoPort::class),
+            $c->get(ServicePatientInterface::class),
+            $c->get(EventPublisherInterface::class)
         ),
 
     // Auth Provider pour validation JWT

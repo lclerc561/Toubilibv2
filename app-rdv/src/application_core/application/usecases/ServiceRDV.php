@@ -10,8 +10,8 @@ use toubilib\core\domain\exceptions\PraticienOccupeException;
 use toubilib\core\domain\exceptions\RessourceInexistanteException;
 use toubilib\core\domain\exceptions\MotifVisiteInvalideException;
 use toubilib\core\domain\exceptions\CreneauInvalideException;
+use toubilib\core\domain\ports\EventPublisherInterface;
 use DateTime;
-use Exception;
 use Ramsey\Uuid\Uuid;
 
 class ServiceRDV implements ServiceRDVInterface
@@ -19,15 +19,18 @@ class ServiceRDV implements ServiceRDVInterface
     private RDVRepositoryInterface $rdvRepository;
     private PraticienInfoPort $praticienService;
     private ServicePatientInterface $servicePatient;
+    private EventPublisherInterface $eventPublisher;
 
     public function __construct(
         RDVRepositoryInterface $rdvRepository,
         PraticienInfoPort $praticienService,
-        ServicePatientInterface $servicePatient
+        ServicePatientInterface $servicePatient,
+        EventPublisherInterface $eventPublisher
     ) {
         $this->rdvRepository = $rdvRepository;
         $this->praticienService = $praticienService;
         $this->servicePatient = $servicePatient;
+        $this->eventPublisher = $eventPublisher;
     }
 
     public function listerCreneauxOccupes(string $praticienId, DateTime $debut, DateTime $fin): array
@@ -128,6 +131,57 @@ class ServiceRDV implements ServiceRDVInterface
         );
 
         $this->rdvRepository->save($rdv);
+
+        // Publier événements pour patient et praticien
+        $patientInfo = $this->servicePatient->consulterPatient($dto->patientId);
+        $praticienInfo = $this->praticienService->getPraticien($dto->praticienId);
+
+        // Événement pour le patient
+        $this->eventPublisher->publish('rdv.created.patient', [
+            'eventType' => 'rdv.created.patient',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'patient',
+                'id' => $patientInfo->getId(),
+                'email' => $patientInfo->getEmail(),
+                'nom' => $patientInfo->getNom(),
+                'prenom' => $patientInfo->getPrenom()
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'praticien' => [
+                    'nom' => $praticienInfo['nom'],
+                    'prenom' => $praticienInfo['prenom'],
+                    'specialite' => $praticienInfo['specialite']
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
+
+        // Événement pour le praticien
+        $this->eventPublisher->publish('rdv.created.praticien', [
+            'eventType' => 'rdv.created.praticien',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'praticien',
+                'id' => $praticienInfo['id'],
+                'email' => $praticienInfo['email'],
+                'nom' => $praticienInfo['nom'],
+                'prenom' => $praticienInfo['prenom']
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'patient' => [
+                    'nom' => $patientInfo->getNom(),
+                    'prenom' => $patientInfo->getPrenom()
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
 
         return $rdv;
     }
