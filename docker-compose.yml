@@ -93,7 +93,7 @@ services:
       - API_TOUBILIB_URL=http://api.toubilib:80
       - API_PRATICIENS_URL=http://app.praticiens:80
       - API_RDV_URL=http://app.rdv:80
-      - API_AUTH_URL=http://api.auth:80
+      - API_AUTH_URL=http://app.auth:80
     command: sh -c "composer install && php -S 0.0.0.0:80 -t /var/php/public"
 
   # --- BASES DE DONNÉES ---
@@ -149,5 +149,42 @@ services:
     image: adminer
     ports:
       - '8080:8080'
+    networks:
+      - toubilib.net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - '5672:5672' 
+      - '15672:15672'
+    networks:
+      - toubilib.net
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
+  app.mailer:
+    build:
+      context: build
+      dockerfile: 8.4-cli.Dockerfile
+    volumes:
+      - ./app-mailer:/var/php
+    working_dir: /var/php
+    networks:
+      - toubilib.net
+    depends_on:
+      - rabbitmq
+      - mailcatcher
+    environment:
+      - SMTP_HOST=mailcatcher
+      - SMTP_PORT=1025
+    restart: unless-stopped
+    command: sh -c "composer install && sleep 10 && php scripts/mail_consumer.php"
+
+  mailcatcher:
+    image: sj26/mailcatcher
+    ports:
+      - "1080:1080"
+      - "1025:1025"
     networks:
       - toubilib.net

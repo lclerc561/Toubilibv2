@@ -10,8 +10,14 @@ use toubilib\infra\repositories\PDORDVRepository;
 use toubilib\core\application\usecases\ServiceRDV;
 use toubilib\core\application\usecases\ServiceRDVInterface;
 use toubilib\api\middlewares\CORSMiddleware;
+use toubilib\api\middlewares\AuthNMiddleware;
 use toubilib\api\services\HATEOASService;
+use toubilib\core\application\ports\PraticienInfoPort;
 use toubilib\infra\adapters\PraticienServiceAdapter;
+use toubilib\core\application\ports\AuthProviderInterface;
+use toubilib\api\services\JWTAuthProvider;
+use toubilib\core\domain\ports\EventPublisherInterface;
+use toubilib\infra\messaging\AMQPEventPublisher;
 use GuzzleHttp\Client;
 
 return [
@@ -54,9 +60,12 @@ return [
         ]);
     },
 
-    // Adaptateur pour communiquer avec le microservice praticiens
-    PraticienServiceAdapter::class => fn(ContainerInterface $c) =>
+    // Adaptateur pour communiquer avec le microservice praticiens (implémente le port)
+    PraticienInfoPort::class => fn(ContainerInterface $c) =>
         new PraticienServiceAdapter($c->get('client.praticiens')),
+
+    // Event Publisher
+    EventPublisherInterface::class => fn() => new AMQPEventPublisher(),
 
     // Services
     ServicePatientInterface::class =>
@@ -65,12 +74,36 @@ return [
     ServiceRDVInterface::class =>
         fn(ContainerInterface $c) => new ServiceRDV(
             $c->get(RDVRepositoryInterface::class),
-            $c->get(PraticienServiceAdapter::class),  // Utilise l'adaptateur HTTP
-            $c->get(ServicePatientInterface::class)
+            $c->get(PraticienInfoPort::class),
+            $c->get(ServicePatientInterface::class),
+            $c->get(EventPublisherInterface::class)
         ),
+
+    // Auth Provider pour validation JWT
+    AuthProviderInterface::class => function() {
+        $jwtSecret = $_ENV['JWT_SECRET'] ?? throw new \Exception('JWT_SECRET non défini dans .env');
+        return new JWTAuthProvider($jwtSecret);
+    },
 
     // Middlewares
     CORSMiddleware::class => fn() => new CORSMiddleware(),
+    AuthNMiddleware::class => fn(ContainerInterface $c) =>
+        new AuthNMiddleware($c->get(AuthProviderInterface::class)),
+
+    \toubilib\api\middlewares\AuthZRDVMiddleware::class => fn(ContainerInterface $c) =>
+        new \toubilib\api\middlewares\AuthZRDVMiddleware($c->get(ServiceRDVInterface::class)),
+
+    \toubilib\api\middlewares\AuthZPatientMiddleware::class => fn(ContainerInterface $c) =>
+        new \toubilib\api\middlewares\AuthZPatientMiddleware($c->get(ServicePatientInterface::class)),
+
+    \toubilib\api\middlewares\AuthZPraticienAgendaMiddleware::class => fn(ContainerInterface $c) =>
+        new \toubilib\api\middlewares\AuthZPraticienAgendaMiddleware(),
+
+    \toubilib\api\middlewares\AuthZPraticienMiddleware::class => fn(ContainerInterface $c) =>
+        new \toubilib\api\middlewares\AuthZPraticienMiddleware(),
+
+    \toubilib\api\middlewares\AuthZPraticienRDVMiddleware::class => fn(ContainerInterface $c) =>
+        new \toubilib\api\middlewares\AuthZPraticienRDVMiddleware(),
 
     // Services
     HATEOASService::class => fn() => new HATEOASService(),

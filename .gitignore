@@ -29,3 +29,8 @@ composer.lock
 
 # Node modules
 node_modules/
+
+
+/tps
+.claude
+tests/

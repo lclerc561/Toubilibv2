@@ -8,6 +8,9 @@ use toubilib\core\application\usecases\ServiceAuth;
 use toubilib\core\application\usecases\ServiceAuthInterface;
 use toubilib\infra\repositories\PDOAuthRepository;
 use toubilib\api\actions\AuthLoginAction;
+use toubilib\api\actions\RegisterPatientAction;
+use toubilib\api\actions\RefreshTokenAction;
+use toubilib\api\middlewares\RegisterPatientInputDataValidationMiddleware;
 use toubilib\api\services\JWTService;
 use toubilib\api\services\HATEOASService;
 use toubilib\core\application\ports\AuthProviderInterface;
@@ -48,5 +51,22 @@ return [
             $c->get(JWTService::class),
             $c->get(HATEOASService::class)
         ),
+
+    RefreshTokenAction::class =>
+        fn(ContainerInterface $c) => new RefreshTokenAction(
+            $c->get(JWTService::class)
+        ),
+
+    RegisterPatientAction::class =>
+        fn(ContainerInterface $c) => new RegisterPatientAction(
+            $c->get(ServiceAuthInterface::class),
+            $c->get(HATEOASService::class)
+        ),
+
+    RegisterPatientInputDataValidationMiddleware::class =>
+        fn(ContainerInterface $c) => new RegisterPatientInputDataValidationMiddleware(
+            $c->get(AuthRepositoryInterface::class)
+        ),
+
     AuthProviderInterface::class => fn(ContainerInterface $c) => new JWTAuthProvider()
 ];

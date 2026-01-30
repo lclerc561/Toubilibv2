@@ -4,14 +4,15 @@ namespace toubilib\infra\adapters;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
+use toubilib\core\application\ports\PraticienInfoPort;
 
 /**
  * Adaptateur pour communiquer avec le microservice praticiens via HTTP
- * 
- * Cet adaptateur remplace l'ancien ServicePraticienInterface
- * Il fait des appels HTTP vers le microservice app.praticiens
+ *
+ * Implémente le port PraticienInfoPort en faisant des appels HTTP
+ * vers le microservice app.praticiens, conformément à l'architecture hexagonale.
  */
-class PraticienServiceAdapter
+class PraticienServiceAdapter implements PraticienInfoPort
 {
     private Client $client;
 

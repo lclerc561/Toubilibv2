@@ -6,6 +6,11 @@ use toubilib\core\application\dto\InputRDVDTO;
 use toubilib\core\domain\entities\RDV;
 use toubilib\core\application\dto\RDVDTO;
 use toubilib\core\application\usecases\ServiceIndisponibiliteInterface;
+use toubilib\core\domain\exceptions\PraticienOccupeException;
+use toubilib\core\domain\exceptions\PraticienIndisponibleException;
+use toubilib\core\domain\exceptions\RessourceInexistanteException;
+use toubilib\core\domain\exceptions\MotifVisiteInvalideException;
+use toubilib\core\domain\exceptions\CreneauInvalideException;
 use DateTime;
 use Exception;
 use Ramsey\Uuid\Uuid;
@@ -79,42 +84,42 @@ class ServiceRDV implements ServiceRDVInterface
         $fin = (clone $debut)->modify("+{$dto->duree} minutes");
 
         if (!$this->servicePraticien->RecherchePraticienByID($dto->praticienId)) {
-            throw new Exception("Praticien inexistant");
+            throw new RessourceInexistanteException("Praticien", $dto->praticienId);
         }
 
         if (!$this->servicePatient->existePatient($dto->patientId)) {
-            throw new Exception("Patient inexistant");
+            throw new RessourceInexistanteException("Patient", $dto->patientId);
         }
 
         // Vérifier que la date n'est pas dans le passé
         $now = new DateTime();
         if ($debut < $now) {
-            throw new Exception("Impossible de créer un rendez-vous dans le passé");
+            throw new CreneauInvalideException("Impossible de créer un rendez-vous dans le passé");
         }
 
         $motifsAutorises = $this->servicePraticien->getMotifsVisite($dto->praticienId);
         if (!in_array($dto->motifVisite, $motifsAutorises, true)) {
-            throw new Exception("Motif de visite non autorisé pour ce praticien");
+            throw new MotifVisiteInvalideException();
         }
 
         $jour = (int)$debut->format('N');
         $heure = (int)$debut->format('H');
         if ($jour > 5 || $heure < 8 || $heure >= 19) {
-            throw new Exception("Créneau horaire invalide (lun-ven 08:00-19:00)");
+            throw new CreneauInvalideException("Créneau horaire invalide (lun-ven 08:00-19:00)");
         }
 
         // Vérifier les créneaux occupés (RDV existants)
         $creneauxOccupes = $this->rdvRepository->findBusySlots($dto->praticienId, $debut, $fin);
         foreach ($creneauxOccupes as $existing) {
             if ($existing->getDateHeureDebut() < $fin && $existing->getDateHeureFin() > $debut) {
-                throw new Exception("Praticien déjà occupé sur ce créneau");
+                throw new PraticienOccupeException();
             }
         }
 
         // Vérifier les indisponibilités
         $indisponibilites = $this->serviceIndisponibilite->trouverIndisponibilitesChevauchantes($dto->praticienId, $debut, $fin);
         if (!empty($indisponibilites)) {
-            throw new Exception("Praticien indisponible sur ce créneau");
+            throw new PraticienIndisponibleException();
         }
 
         $rdv = new RDV(
@@ -140,7 +145,7 @@ class ServiceRDV implements ServiceRDVInterface
     {
         $rdv = $this->rdvRepository->findById($rdvId);
         if (!$rdv) {
-            throw new Exception("RDV inexistant");
+            throw new RessourceInexistanteException("RDV", $rdvId);
         }
 
         $rdv->annuler(); // méthode métier sur l'entité RDV, change le status 
@@ -152,7 +157,7 @@ class ServiceRDV implements ServiceRDVInterface
     {
         $rdv = $this->rdvRepository->findById($rdvId);
         if (!$rdv) {
-            throw new Exception("RDV inexistant");
+            throw new RessourceInexistanteException("RDV");
         }
 
         $rdv->honorer(); // méthode métier sur l'entité RDV, change le status à 2
@@ -164,7 +169,7 @@ class ServiceRDV implements ServiceRDVInterface
     {
         $rdv = $this->rdvRepository->findById($rdvId);
         if (!$rdv) {
-            throw new Exception("RDV inexistant");
+            throw new RessourceInexistanteException("RDV");
         }
 
         $rdv->nonHonorer(); // méthode métier sur l'entité RDV, change le status à 3

@@ -2,28 +2,35 @@
 namespace toubilib\core\application\usecases;
 
 use toubilib\core\application\ports\RDVRepositoryInterface;
+use toubilib\core\application\ports\PraticienInfoPort;
 use toubilib\core\application\dto\InputRDVDTO;
 use toubilib\core\domain\entities\RDV;
 use toubilib\core\application\dto\RDVDTO;
-use toubilib\infra\adapters\PraticienServiceAdapter;
+use toubilib\core\domain\exceptions\PraticienOccupeException;
+use toubilib\core\domain\exceptions\RessourceInexistanteException;
+use toubilib\core\domain\exceptions\MotifVisiteInvalideException;
+use toubilib\core\domain\exceptions\CreneauInvalideException;
+use toubilib\core\domain\ports\EventPublisherInterface;
 use DateTime;
-use Exception;
 use Ramsey\Uuid\Uuid;
 
 class ServiceRDV implements ServiceRDVInterface
 {
     private RDVRepositoryInterface $rdvRepository;
-    private PraticienServiceAdapter $praticienAdapter;
+    private PraticienInfoPort $praticienService;
     private ServicePatientInterface $servicePatient;
+    private EventPublisherInterface $eventPublisher;
 
     public function __construct(
         RDVRepositoryInterface $rdvRepository,
-        PraticienServiceAdapter $praticienAdapter,
-        ServicePatientInterface $servicePatient
+        PraticienInfoPort $praticienService,
+        ServicePatientInterface $servicePatient,
+        EventPublisherInterface $eventPublisher
     ) {
         $this->rdvRepository = $rdvRepository;
-        $this->praticienAdapter = $praticienAdapter;
+        $this->praticienService = $praticienService;
         $this->servicePatient = $servicePatient;
+        $this->eventPublisher = $eventPublisher;
     }
 
     public function listerCreneauxOccupes(string $praticienId, DateTime $debut, DateTime $fin): array
@@ -76,37 +83,37 @@ class ServiceRDV implements ServiceRDVInterface
         $fin = (clone $debut)->modify("+{$dto->duree} minutes");
 
         // Vérifier que le praticien existe via l'adaptateur HTTP
-        if (!$this->praticienAdapter->existePraticien($dto->praticienId)) {
-            throw new Exception("Praticien inexistant");
+        if (!$this->praticienService->existePraticien($dto->praticienId)) {
+            throw new RessourceInexistanteException("Praticien", $dto->praticienId);
         }
 
         if (!$this->servicePatient->existePatient($dto->patientId)) {
-            throw new Exception("Patient inexistant");
+            throw new RessourceInexistanteException("Patient", $dto->patientId);
         }
 
         // Vérifier que la date n'est pas dans le passé
         $now = new DateTime();
         if ($debut < $now) {
-            throw new Exception("Impossible de créer un rendez-vous dans le passé");
+            throw new CreneauInvalideException("Impossible de créer un rendez-vous dans le passé");
         }
 
         // Vérifier les motifs autorisés via l'adaptateur HTTP
-        $motifsAutorises = $this->praticienAdapter->getMotifsVisite($dto->praticienId);
+        $motifsAutorises = $this->praticienService->getMotifsVisite($dto->praticienId);
         if (!in_array($dto->motifVisite, $motifsAutorises, true)) {
-            throw new Exception("Motif de visite non autorisé pour ce praticien");
+            throw new MotifVisiteInvalideException();
         }
 
         $jour = (int)$debut->format('N');
         $heure = (int)$debut->format('H');
         if ($jour > 5 || $heure < 8 || $heure >= 19) {
-            throw new Exception("Créneau horaire invalide (lun-ven 08:00-19:00)");
+            throw new CreneauInvalideException("Créneau horaire invalide (lun-ven 08:00-19:00)");
         }
 
         // Vérifier les créneaux occupés
         $creneauxOccupes = $this->rdvRepository->findBusySlots($dto->praticienId, $debut, $fin);
         foreach ($creneauxOccupes as $existing) {
             if ($existing->getDateHeureDebut() < $fin && $existing->getDateHeureFin() > $debut) {
-                throw new Exception("Praticien déjà occupé sur ce créneau");
+                throw new PraticienOccupeException();
             }
         }
 
@@ -125,6 +132,57 @@ class ServiceRDV implements ServiceRDVInterface
 
         $this->rdvRepository->save($rdv);
 
+        // Publier événements pour patient et praticien
+        $patientInfo = $this->servicePatient->consulterPatient($dto->patientId);
+        $praticienInfo = $this->praticienService->getPraticien($dto->praticienId);
+
+        // Événement pour le patient
+        $this->eventPublisher->publish('rdv.created.patient', [
+            'eventType' => 'rdv.created.patient',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'patient',
+                'id' => $patientInfo->getId(),
+                'email' => $patientInfo->getEmail(),
+                'nom' => $patientInfo->getNom(),
+                'prenom' => $patientInfo->getPrenom()
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'praticien' => [
+                    'nom' => $praticienInfo['nom'],
+                    'prenom' => $praticienInfo['prenom'],
+                    'specialite' => $praticienInfo['specialite']
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
+
+        // Événement pour le praticien
+        $this->eventPublisher->publish('rdv.created.praticien', [
+            'eventType' => 'rdv.created.praticien',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'praticien',
+                'id' => $praticienInfo['id'],
+                'email' => $praticienInfo['email'],
+                'nom' => $praticienInfo['nom'],
+                'prenom' => $praticienInfo['prenom']
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'patient' => [
+                    'nom' => $patientInfo->getNom(),
+                    'prenom' => $patientInfo->getPrenom()
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
+
         return $rdv;
     }
 
@@ -132,19 +190,70 @@ class ServiceRDV implements ServiceRDVInterface
     {
         $rdv = $this->rdvRepository->findById($rdvId);
         if (!$rdv) {
-            throw new Exception("RDV inexistant");
+            throw new RessourceInexistanteException("RDV");
         }
 
         $rdv->annuler();
 
         $this->rdvRepository->updateStatus($rdv->getId(), $rdv->getStatus());
+
+        // Publier événements d'annulation pour patient et praticien
+        $patientInfo = $this->servicePatient->consulterPatient($rdv->getPatientId());
+        $praticienInfo = $this->praticienService->getPraticien($rdv->getPraticienId());
+
+        // Événement pour le patient
+        $this->eventPublisher->publish('rdv.cancelled.patient', [
+            'eventType' => 'rdv.cancelled.patient',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'patient',
+                'id' => $patientInfo->getId(),
+                'email' => $patientInfo->getEmail(),
+                'nom' => $patientInfo->getNom(),
+                'prenom' => $patientInfo->getPrenom()
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'praticien' => [
+                    'nom' => $praticienInfo['nom'],
+                    'prenom' => $praticienInfo['prenom'],
+                    'specialite' => $praticienInfo['specialite']
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
+
+        // Événement pour le praticien
+        $this->eventPublisher->publish('rdv.cancelled.praticien', [
+            'eventType' => 'rdv.cancelled.praticien',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'praticien',
+                'id' => $praticienInfo['id'],
+                'email' => $praticienInfo['email'],
+                'nom' => $praticienInfo['nom'],
+                'prenom' => $praticienInfo['prenom']
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'patient' => [
+                    'nom' => $patientInfo->getNom(),
+                    'prenom' => $patientInfo->getPrenom()
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
     }
 
     public function marquerCommeHonore(string $rdvId): void
     {
         $rdv = $this->rdvRepository->findById($rdvId);
         if (!$rdv) {
-            throw new Exception("RDV inexistant");
+            throw new RessourceInexistanteException("RDV");
         }
 
         $rdv->honorer();
@@ -156,7 +265,7 @@ class ServiceRDV implements ServiceRDVInterface
     {
         $rdv = $this->rdvRepository->findById($rdvId);
         if (!$rdv) {
-            throw new Exception("RDV inexistant");
+            throw new RessourceInexistanteException("RDV");
         }
 
         $rdv->nonHonorer();

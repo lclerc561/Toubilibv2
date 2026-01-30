@@ -8,25 +8,22 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Slim\Psr7\Response as SlimResponse;
 use Slim\Routing\RouteContext;
 
+/**
+ * Middleware d'autorisation pour les patients
+ *
+ * Vérifie que l'utilisateur authentifié est un patient et qu'il accède à ses propres données.
+ * IMPORTANT: Ce middleware doit être placé APRÈS AuthNMiddleware qui valide le token.
+ */
 class AuthZPatientMiddleware implements MiddlewareInterface
 {
     public function process(Request $request, RequestHandler $handler): Response
     {
-        // 1. Extraction et décodage du JWT
-        $authHeader = $request->getHeaderLine('Authorization');
-        $tokenParts = explode('.', str_replace('Bearer ', '', $authHeader));
-        
-        if (count($tokenParts) !== 3) {
-            return $this->forbidden("Jeton JWT invalide ou manquant");
+        // Récupérer les données utilisateur validées par AuthNMiddleware
+        $user = $request->getAttribute('user');
+
+        if (!$user) {
+            return $this->forbidden("Authentification requise");
         }
-
-        $payload = json_decode(base64_decode($tokenParts[1]), true);
-
-        if (!isset($payload['data'])) {
-            return $this->forbidden("Données utilisateur manquantes dans le jeton");
-        }
-
-        $user = $payload['data'];
 
         //Vérification du rôle Patient
         if ($user['role'] !== 1) {

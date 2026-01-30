@@ -5,6 +5,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use toubilib\core\application\usecases\ServiceRDVInterface;
 use toubilib\api\services\HATEOASService;
+use toubilib\api\handlers\ExceptionHandler;
 use Slim\Psr7\Response as SlimResponse;
 
 class CreateRDVAction
@@ -54,18 +55,20 @@ class CreateRDVAction
             $res->getBody()->write(json_encode($responseData, JSON_UNESCAPED_UNICODE));
             return $res->withHeader('Content-Type', 'application/json')->withStatus(201);
         } catch (\Exception $e) {
-            $status = 400;
-            $msg = $e->getMessage();
+            // Utiliser le gestionnaire centralisé d'exceptions
+            $errorInfo = ExceptionHandler::handle($e);
 
-            if (stripos($msg, 'occup') !== false) $status = 409;
-            if (stripos($msg, 'inexistant') !== false) $status = 404;
+            // Logger les erreurs serveur (5xx) mais pas les erreurs client (4xx)
+            if (ExceptionHandler::shouldLog($e)) {
+                error_log("CreateRDVAction - Erreur: " . get_class($e) . " - " . $e->getMessage());
+            }
 
             $res = new SlimResponse();
             $res->getBody()->write(json_encode([
                 'status' => 'error',
-                'message' => $msg
+                'message' => $errorInfo['message']
             ], JSON_UNESCAPED_UNICODE));
-            return $res->withHeader('Content-Type', 'application/json')->withStatus($status);
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($errorInfo['status']);
         }
     }
 }
