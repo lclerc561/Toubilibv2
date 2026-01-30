@@ -151,3 +151,27 @@ services:
       - '8080:8080'
     networks:
       - toubilib.net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - '5672:5672' 
+      - '15672:15672'
+    networks:
+      - toubilib.net
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
+  app.mailer:
+    build:
+      context: build
+      dockerfile: 8.4-cli.Dockerfile
+    volumes:
+      - ./app-mailer:/var/php
+    working_dir: /var/php
+    networks:
+      - toubilib.net
+    depends_on:
+      - rabbitmq
+    command: sh -c "composer install && tail -f /dev/null"
