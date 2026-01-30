@@ -9,6 +9,7 @@ return function(App $app): App {
     // Routes publiques (sans authentification)
     $app->post('/auth/login', GenericGatewayAction::class);
     $app->post('/auth/register', GenericGatewayAction::class);
+    $app->post('/auth/refresh', GenericGatewayAction::class);
 
     // Routes publiques selon le TP 1 (opérations 1, 2, 3, 9)
     $app->get('/praticiens', GenericGatewayAction::class); // Lister praticiens
