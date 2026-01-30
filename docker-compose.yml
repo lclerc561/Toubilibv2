@@ -174,4 +174,17 @@ services:
       - toubilib.net
     depends_on:
       - rabbitmq
-    command: sh -c "composer install && tail -f /dev/null"
+      - mailcatcher
+    environment:
+      - SMTP_HOST=mailcatcher
+      - SMTP_PORT=1025
+    restart: unless-stopped
+    command: sh -c "composer install && sleep 10 && php scripts/mail_consumer.php"
+
+  mailcatcher:
+    image: sj26/mailcatcher
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+    networks:
+      - toubilib.net

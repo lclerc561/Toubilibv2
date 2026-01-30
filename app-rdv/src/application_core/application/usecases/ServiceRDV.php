@@ -196,6 +196,57 @@ class ServiceRDV implements ServiceRDVInterface
         $rdv->annuler();
 
         $this->rdvRepository->updateStatus($rdv->getId(), $rdv->getStatus());
+
+        // Publier événements d'annulation pour patient et praticien
+        $patientInfo = $this->servicePatient->consulterPatient($rdv->getPatientId());
+        $praticienInfo = $this->praticienService->getPraticien($rdv->getPraticienId());
+
+        // Événement pour le patient
+        $this->eventPublisher->publish('rdv.cancelled.patient', [
+            'eventType' => 'rdv.cancelled.patient',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'patient',
+                'id' => $patientInfo->getId(),
+                'email' => $patientInfo->getEmail(),
+                'nom' => $patientInfo->getNom(),
+                'prenom' => $patientInfo->getPrenom()
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'praticien' => [
+                    'nom' => $praticienInfo['nom'],
+                    'prenom' => $praticienInfo['prenom'],
+                    'specialite' => $praticienInfo['specialite']
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
+
+        // Événement pour le praticien
+        $this->eventPublisher->publish('rdv.cancelled.praticien', [
+            'eventType' => 'rdv.cancelled.praticien',
+            'rdvId' => $rdv->getId(),
+            'recipient' => [
+                'type' => 'praticien',
+                'id' => $praticienInfo['id'],
+                'email' => $praticienInfo['email'],
+                'nom' => $praticienInfo['nom'],
+                'prenom' => $praticienInfo['prenom']
+            ],
+            'data' => [
+                'dateHeureDebut' => $rdv->getDateHeureDebut()->format('Y-m-d H:i:s'),
+                'duree' => $rdv->getDuree(),
+                'motifVisite' => $rdv->getMotifVisite(),
+                'patient' => [
+                    'nom' => $patientInfo->getNom(),
+                    'prenom' => $patientInfo->getPrenom()
+                ]
+            ],
+            'timestamp' => date('c')
+        ]);
     }
 
     public function marquerCommeHonore(string $rdvId): void
